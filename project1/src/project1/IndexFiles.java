@@ -53,6 +53,18 @@ public class IndexFiles {
 
   private IndexFiles() {}
 
+    private static String DOC_BEGIN_TAG = "<DOC>";
+    private static String DOC_END_TAG = "</DOC>";
+    private static String DOC_NO = "";
+    private static String DOC_NO_BEGIN_TAG = "<DOCNO>";
+    private static String DOC_NO_END_TAG = "</DOCNO>";
+    private static String DOC_ID = "";
+    private static String DOC_ID_BEGIN_TAG = "<DOCID>";
+    private static String DOC_ID_END_TAG = "</DOCID>";
+    private static boolean IN_DOC = false;
+    private static StringBuilder STRING_BUILDER = new StringBuilder();
+    private static Document DOCUMENT = new Document();
+
   /** Index all text files under a directory. */
   public static void main(String[] args) {
     String usage = "java project1.IndexFiles"
@@ -135,9 +147,9 @@ public class IndexFiles {
    * Indexes the given file using the given writer, or if a directory is given,
    * recurses over files and directories found under the given directory.
    *
-   * NOTE: This method indexes one document per input file.  This is slow.  For good
+   * NOTE: This method indexes one DOCUMENT per input file.  This is slow.  For good
    * throughput, put multiple documents into your input file(s).  An example of this is
-   * in the benchmark module, which can create "line doc" files, one document per line,
+   * in the benchmark module, which can create "line doc" files, one DOCUMENT per line,
    * using the
    * <a href="../../../../../contrib-benchmark/org/apache/lucene/benchmark/byTask/tasks/WriteLineDocTask.html"
    * >WriteLineDocTask</a>.
@@ -164,46 +176,59 @@ public class IndexFiles {
     }
   }
 
-  /** Indexes a single document */
+  /** Indexes a single DOCUMENT */
   static void indexDoc(IndexWriter writer, Path file, long lastModified) throws IOException {
     try (InputStream stream = Files.newInputStream(file)) {
         BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8));
-        String docBeginTag = "<DOC>";
-        String docEndTag = "</DOC>";
-        boolean inDoc = false;
-        StringBuilder stringBuilder = new StringBuilder();
-        Document document = new Document();
 
         String line;
         while ((line = bufferedReader.readLine()) != null) {
-            if (line.equals(docBeginTag)) {
-                inDoc = true;
+            if (line.equals(DOC_BEGIN_TAG)) {
+                IN_DOC = true;
                 continue;
-            } else if (line.equals(docEndTag)) {
-                inDoc = false;
-                document.add(new StringField("path", file.toString(), Field.Store.YES));
-                document.add(new LongField("modified", lastModified, Field.Store.NO));
-                document.add(new TextField("contents", stringBuilder.toString(), Field.Store.NO));
-
-                if (writer.getConfig().getOpenMode() == OpenMode.CREATE) {
-                    // New index, so we just add the document (no old document can be there):
-                    System.out.println("adding " + file);
-                    writer.addDocument(document);
+            } else if (line.equals(DOC_END_TAG)) {
+                IN_DOC = false;
+                DOCUMENT.add(new StringField("path", file.toString(), Field.Store.YES));
+                DOCUMENT.add(new LongField("modified", lastModified, Field.Store.NO));
+                DOCUMENT.add(new TextField("filename", file.toString(), Field.Store.YES));
+                if (!DOC_NO.equals("")) {
+                    DOCUMENT.add(new TextField("document_id", DOC_NO, Field.Store.YES));
+                } else if (!DOC_ID.equals("")) {
+                    DOCUMENT.add(new TextField("document_id", DOC_ID, Field.Store.YES));
                 } else {
-                    // Existing index (an old copy of this document may have been indexed) so
-                    // we use updateDocument instead to replace the old one matching the exact
-                    // path, if present:
-                    System.out.println("updating " + file);
-                    writer.updateDocument(new Term("path", file.toString()), document);
+                    DOCUMENT = new Document();
+                    STRING_BUILDER = new StringBuilder();
+                    continue;
                 }
 
-                document = new Document();
-                stringBuilder = new StringBuilder();
+                DOCUMENT.add(new TextField("contents", STRING_BUILDER.toString(), Field.Store.NO));
+
+                String name = DOC_NO.equals("") ? DOC_ID : DOC_NO;
+                if (writer.getConfig().getOpenMode() == OpenMode.CREATE) {
+                    // New index, so we just add the DOCUMENT (no old DOCUMENT can be there):
+                    System.out.println("adding " + name);
+                    writer.addDocument(DOCUMENT);
+                } else {
+                    // Existing index (an old copy of this DOCUMENT may have been indexed) so
+                    // we use updateDocument instead to replace the old one matching the exact
+                    // path, if present:
+                    System.out.println("updating " + name);
+                    writer.updateDocument(new Term("path", file.toString()), DOCUMENT);
+                }
+
+                DOCUMENT = new Document();
+                STRING_BUILDER = new StringBuilder();
 
                 continue;
             }
-            if (inDoc) {
-                stringBuilder.append(line).append("\n");
+            if (line.contains(DOC_NO_BEGIN_TAG) && line.contains(DOC_NO_END_TAG)) {
+                DOC_NO = line.replace(DOC_NO_BEGIN_TAG, "").replace(DOC_NO_END_TAG, "").trim();
+            }
+            if (line.contains(DOC_ID_BEGIN_TAG) && line.contains(DOC_ID_END_TAG)) {
+                DOC_ID = line.replace(DOC_ID_BEGIN_TAG, "").replace(DOC_ID_END_TAG, "").trim();
+            }
+            if (IN_DOC) {
+                STRING_BUILDER.append(line).append("\n");
             }
         }
     }
