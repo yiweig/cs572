@@ -169,12 +169,10 @@ public class IndexFiles {
     try (InputStream stream = Files.newInputStream(file)) {
         BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8));
         String docBeginTag = "<DOC>";
-        String docEndTag = "</DOC";
+        String docEndTag = "</DOC>";
         boolean inDoc = false;
         StringBuilder stringBuilder = new StringBuilder();
         Document document = new Document();
-        document.add(new StringField("path", file.toString(), Field.Store.YES));
-        document.add(new LongField("modified", lastModified, Field.Store.NO));
 
         String line;
         while ((line = bufferedReader.readLine()) != null) {
@@ -183,6 +181,8 @@ public class IndexFiles {
                 continue;
             } else if (line.equals(docEndTag)) {
                 inDoc = false;
+                document.add(new StringField("path", file.toString(), Field.Store.YES));
+                document.add(new LongField("modified", lastModified, Field.Store.NO));
                 document.add(new TextField("contents", stringBuilder.toString(), Field.Store.NO));
 
                 if (writer.getConfig().getOpenMode() == OpenMode.CREATE) {
