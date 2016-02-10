@@ -63,6 +63,7 @@ public class IndexFiles {
     private static String DOC_ID_END_TAG = "</DOCID>";
     private static boolean IN_DOC = false;
     private static StringBuilder STRING_BUILDER = new StringBuilder();
+    private static String LINE;
     private static Document DOCUMENT = new Document();
 
   /** Index all text files under a directory. */
@@ -181,12 +182,11 @@ public class IndexFiles {
     try (InputStream stream = Files.newInputStream(file)) {
         BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8));
 
-        String line;
-        while ((line = bufferedReader.readLine()) != null) {
-            if (line.equals(DOC_BEGIN_TAG)) {
+        while ((LINE = bufferedReader.readLine()) != null) {
+            if (LINE.equals(DOC_BEGIN_TAG)) {
                 IN_DOC = true;
                 continue;
-            } else if (line.equals(DOC_END_TAG)) {
+            } else if (LINE.equals(DOC_END_TAG)) {
                 IN_DOC = false;
                 DOCUMENT.add(new StringField("path", file.toString(), Field.Store.YES));
                 DOCUMENT.add(new LongField("modified", lastModified, Field.Store.NO));
@@ -221,14 +221,14 @@ public class IndexFiles {
 
                 continue;
             }
-            if (line.contains(DOC_NO_BEGIN_TAG) && line.contains(DOC_NO_END_TAG)) {
-                DOC_NO = line.replace(DOC_NO_BEGIN_TAG, "").replace(DOC_NO_END_TAG, "").trim();
+            if (LINE.contains(DOC_NO_BEGIN_TAG) && LINE.contains(DOC_NO_END_TAG)) {
+                DOC_NO = LINE.replace(DOC_NO_BEGIN_TAG, "").replace(DOC_NO_END_TAG, "").trim();
             }
-            if (line.contains(DOC_ID_BEGIN_TAG) && line.contains(DOC_ID_END_TAG)) {
-                DOC_ID = line.replace(DOC_ID_BEGIN_TAG, "").replace(DOC_ID_END_TAG, "").trim();
+            if (LINE.contains(DOC_ID_BEGIN_TAG) && LINE.contains(DOC_ID_END_TAG)) {
+                DOC_ID = LINE.replace(DOC_ID_BEGIN_TAG, "").replace(DOC_ID_END_TAG, "").trim();
             }
             if (IN_DOC) {
-                STRING_BUILDER.append(line).append("\n");
+                STRING_BUILDER.append(LINE).append("\n");
             }
         }
     }
